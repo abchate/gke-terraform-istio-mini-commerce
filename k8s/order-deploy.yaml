@@ -1,0 +1,106 @@
+# Script SQL exécuté au premier démarrage de Postgres (création de la table orders)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+data:
+  01-create-table.sql: |
+    -- Table des commandes pour order-service
+    CREATE TABLE IF NOT EXISTS orders (
+      id         VARCHAR(36) PRIMARY KEY,
+      product_id VARCHAR(50) NOT NULL,
+      quantity   INTEGER NOT NULL CHECK (quantity > 0),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: "ordersdb"
+            - name: POSTGRES_USER
+              value: "ordersuser"
+            - name: POSTGRES_PASSWORD
+              value: "orderspass"
+          volumeMounts:
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: init-sql
+          configMap:
+            name: postgres-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      containers:
+        - name: order-service
+          image: order-service:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3006
+          env:
+            - name: ORDER_DB_HOST
+              value: "postgres"
+            - name: ORDER_DB_PORT
+              value: "5432"
+            - name: ORDER_DB_NAME
+              value: "ordersdb"
+            - name: ORDER_DB_USER
+              value: "ordersuser"
+            - name: ORDER_DB_PASSWORD
+              value: "orderspass"
+            - name: PRODUCT_SERVICE_URL
+              value: "http://product-service:3005"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+spec:
+  type: ClusterIP
+  selector:
+    app: order-service
+  ports:
+    - port: 3006
+      targetPort: 3006

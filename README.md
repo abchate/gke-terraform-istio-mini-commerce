@@ -18,7 +18,18 @@ Les services **order-service** et **gateway** chargent ce `.env` automatiquement
 
 ## Docker (Étape 2 – Dockerisation)
 
-### Build des 3 images
+### Stack « pro » : frontend Vue 3 (dossier `web/`)
+
+- **web** : Vue 3 + Vite, build puis servi par nginx (Dockerfile multi-stage). Service séparé en K8s et dans docker-compose.
+- Le **gateway** proxy `/` vers le service `web` quand `FRONTEND_SERVICE_URL` est défini (K8s et compose). Sinon, GET `/` affiche un message invitant à configurer le frontend.
+
+Build de l’image web :
+
+```bash
+docker build -t web:1.0 ./web
+```
+
+### Build des images (backend + gateway + web)
 
 À la racine du projet :
 
@@ -26,6 +37,7 @@ Les services **order-service** et **gateway** chargent ce `.env` automatiquement
 docker build -t mini-commerce-gateway ./gateway
 docker build -t mini-commerce-product ./product-service
 docker build -t mini-commerce-order ./order-service
+docker build -t web:1.0 ./web
 ```
 
 ### Test d’un container en local
@@ -51,8 +63,9 @@ docker run --rm -p 3006:3006 \
 # ou
 docker run --rm -p 8085:8085 \
   -e PRODUCT_SERVICE_URL=http://host.docker.internal:3005 -e ORDER_SERVICE_URL=http://host.docker.internal:3006 \
-  -v $(pwd)/frontend:/frontend -e STATIC_DIR=/frontend \
+  -e FRONTEND_SERVICE_URL=http://host.docker.internal:8080 \
   mini-commerce-gateway
+# (avec un conteneur web:1.0 sur le port 8080 en parallèle)
 ```
 
 ### Tout lancer avec docker-compose (recommandé)
@@ -63,11 +76,61 @@ Un seul fichier `.env` à la racine (optionnel ; les défauts conviennent pour d
 docker compose up --build
 ```
 
-Puis ouvre **http://localhost:8085/** (frontend + API). Arrêt : `Ctrl+C` puis `docker compose down`.
+Puis ouvre **http://localhost:8085/** : le gateway sert l’app Vue (service `web`) et les APIs. Arrêt : `Ctrl+C` puis `docker compose down`.
 
 Résumé :
-- **4 images** : 3 builds (gateway, product-service, order-service) + 1 image officielle PostgreSQL.
-- **3 images applicatives** buildées via les Dockerfiles ; **1 image PostgreSQL** : `postgres:16-alpine` dans `docker-compose.yml`.
+- **5 conteneurs** : postgres, product-service, order-service, **web** (Vue 3), gateway.
+- **4 images applicatives** (product-service, order-service, gateway, web) + 1 image PostgreSQL.
+
+### Comment tester le K8s (Minikube)
+
+Prérequis : Minikube démarré (`minikube start`), `kubectl` installé.
+
+**1. Utiliser le Docker du cluster** (pour que les images buildées soient visibles par Minikube) :
+```bash
+eval $(minikube docker-env)
+```
+
+**2. Builder les 4 images** (à la racine du projet) :
+```bash
+docker build -t product-service:1.0 ./product-service
+docker build -t order-service:1.0 ./order-service
+docker build -t gateway:1.0 ./gateway
+docker build -t web:1.0 ./web
+```
+
+**3. Appliquer les manifests** (dans l’ordre) :
+```bash
+kubectl apply -f k8s/product-deploy.yaml
+kubectl apply -f k8s/order-deploy.yaml    # postgres + order-service
+kubectl apply -f k8s/web-deploy.yaml
+kubectl apply -f k8s/gateway-deploy.yaml
+```
+
+**4. Vérifier que les pods tournent** :
+```bash
+kubectl get pods
+```
+Tous doivent être `Running` (postgres peut prendre 30 s pour le healthcheck).
+
+**5. Ouvrir l’app dans le navigateur** (garder le terminal ouvert) :
+```bash
+minikube service gateway
+```
+Minikube affiche une URL du type **http://127.0.0.1:xxxxx** et ouvre le navigateur. Tu vois l’interface Vue (produits, formulaire de commande, liste des commandes).
+
+**6. Tester les APIs en curl** (avec l’URL du tunnel, ex. port 53335) :
+```bash
+curl http://127.0.0.1:53335/api/products
+curl -X POST http://127.0.0.1:53335/api/orders -H "Content-Type: application/json" -d '{"productId":"p1","quantity":1}'
+curl http://127.0.0.1:53335/api/orders
+```
+
+**Nettoyage** :
+```bash
+kubectl delete -f k8s/
+# pour quitter le docker-env Minikube : eval $(minikube docker-env -u)
+```
 
 ---
 
@@ -126,13 +189,9 @@ npm install
 node index.js
 ```
 
-### 3. Interface web (frontend)
+### 3. Interface web (Vue 3)
 
-Le gateway sert une petite interface dans le dossier `frontend/`. Une fois les 3 services lancés, ouvre dans le navigateur :
-
-**http://localhost:8085/**
-
-Tu peux y consulter la liste des produits, créer une commande (produit + quantité) et voir la liste des commandes. Tout passe par le gateway (`/api/products`, `/api/orders`).
+L’interface est le service **web** (Vue 3). En local sans Docker : lance le gateway + product + order, puis soit `cd web && npm run dev` (http://localhost:5173 avec proxy vers le gateway), soit utilise docker-compose pour tout lancer et ouvre **http://localhost:8085/** (gateway proxy vers web).
 
 ### 4. Requêtes curl
 

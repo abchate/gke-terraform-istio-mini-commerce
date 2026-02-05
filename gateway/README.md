@@ -1,6 +1,6 @@
 # gateway
 
-Reverse proxy HTTP. Sert aussi le frontend (dossier `frontend/` à la racine) à la racine `/` et expose les APIs sous `/api/products` et `/api/orders`. CORS activé pour le front.
+Reverse proxy HTTP. Proxie `/` vers le service frontend (web) si `FRONTEND_SERVICE_URL` est défini, et expose les APIs sous `/api/products` et `/api/orders`. CORS activé.
 
 ## Variables d’environnement
 

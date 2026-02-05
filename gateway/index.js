@@ -8,8 +8,6 @@ const app = express();
 const PORT = 8085;
 
 app.use(cors());
-const staticDir = process.env.STATIC_DIR || path.join(__dirname, '..', 'frontend');
-app.use(express.static(staticDir));
 
 const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://localhost:3005';
 const orderServiceUrl = process.env.ORDER_SERVICE_URL || 'http://localhost:3006';
@@ -31,6 +29,29 @@ app.use(
     pathRewrite: { '^/api/orders': '/orders' },
   })
 );
+
+const frontendServiceUrl = process.env.FRONTEND_SERVICE_URL;
+if (frontendServiceUrl) {
+  app.use(
+    '/',
+    createProxyMiddleware({
+      target: frontendServiceUrl,
+      changeOrigin: true,
+      pathRewrite: { '^/$': '/index.html' },
+      onProxyReq(proxyReq, req) {
+        if (req.url === '/' || req.url === '') console.log('[gateway] Proxy vers web:', req.method, req.url, '->', frontendServiceUrl);
+      },
+      onError(err, req, res) {
+        console.error('Proxy vers frontend:', err.message);
+        res.status(503).type('text').send('Frontend indisponible (service web non joignable). Vérifier que le pod web tourne: kubectl get pods');
+      },
+    })
+  );
+} else {
+  app.get('/', (_, res) => {
+    res.type('text').status(200).send('Frontend non configuré. Définir FRONTEND_SERVICE_URL (ex. http://web:80) ou lancer le service web.');
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`gateway écoute sur le port ${PORT}`);

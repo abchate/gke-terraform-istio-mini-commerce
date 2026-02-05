@@ -40,6 +40,12 @@ services:
       product-service:
         condition: service_started
 
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    # pas de port exposé : le gateway proxy vers web en interne
+
   gateway:
     build:
       context: ./gateway
@@ -47,11 +53,10 @@ services:
     environment:
       PRODUCT_SERVICE_URL: http://product-service:3005
       ORDER_SERVICE_URL: http://order-service:3006
-      STATIC_DIR: /frontend
-    volumes:
-      - ./frontend:/frontend:ro
+      FRONTEND_SERVICE_URL: http://web:80
     ports:
       - "8085:8085"
     depends_on:
+      - web
       - product-service
       - order-service
