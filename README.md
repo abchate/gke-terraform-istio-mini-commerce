@@ -3,6 +3,18 @@ Cloud-native mini e-commerce on Google Cloud: GKE provisioned with Terraform, se
 
 ---
 
+## Communication inter-services (réseau Kubernetes)
+
+En K8s, **order-service** appelle **product-service** via le réseau du cluster (DNS Kubernetes), pas en localhost :
+
+- Dans `k8s/order-deploy.yaml`, la variable `PRODUCT_SERVICE_URL` est définie à **`http://product-service:3005`** (nom du Service Kubernetes).
+- **order-service** fait un `GET` sur `${PRODUCT_SERVICE_URL}/products/:id` pour vérifier qu’un produit existe avant de créer une commande (`order-service/index.js`, `checkProductExists`).
+- **Gestion d’erreur** : si le produit n’existe pas (product-service renvoie 404), order-service répond **400** avec `{ "error": "Produit inexistant" }` et ne crée pas la commande.
+
+Pour tester : `POST /api/orders` avec `{"productId": "inexistant", "quantity": 1}` → **400 Produit inexistant**.
+
+---
+
 ## Fichier .env (recommandé)
 
 À la racine du projet, crée un fichier `.env` à partir du modèle (surtout pour le mot de passe PostgreSQL) :

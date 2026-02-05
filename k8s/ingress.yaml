@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mini-commerce-ingress
+  annotations:
+    # Optionnel : pour un seul host, pas besoin de regex
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: mini-commerce.local
+      http:
+        paths:
+          # Tout le trafic (/, /api/products, /api/orders) vers le gateway, qui route en interne
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 8085
