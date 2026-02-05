@@ -16,6 +16,61 @@ Les services **order-service** et **gateway** chargent ce `.env` automatiquement
 
 ---
 
+## Docker (Étape 2 – Dockerisation)
+
+### Build des 3 images
+
+À la racine du projet :
+
+```bash
+docker build -t mini-commerce-gateway ./gateway
+docker build -t mini-commerce-product ./product-service
+docker build -t mini-commerce-order ./order-service
+```
+
+### Test d’un container en local
+
+PostgreSQL doit être accessible (local ou container). Exemple avec l’image officielle :
+
+```bash
+docker run -d --name postgres-orders \
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=orders \
+  -p 5432:5432 \
+  -v $(pwd)/order-service/create_table.sql:/docker-entrypoint-initdb.d/01-create-table.sql \
+  postgres:16-alpine
+```
+
+Puis lancer un service (remplace `ORDER_DB_PASSWORD` si différent) :
+
+```bash
+docker run --rm -p 3005:3005 mini-commerce-product
+# ou
+docker run --rm -p 3006:3006 \
+  -e ORDER_DB_HOST=host.docker.internal -e ORDER_DB_USER=postgres -e ORDER_DB_PASSWORD=postgres \
+  mini-commerce-order
+# ou
+docker run --rm -p 8085:8085 \
+  -e PRODUCT_SERVICE_URL=http://host.docker.internal:3005 -e ORDER_SERVICE_URL=http://host.docker.internal:3006 \
+  -v $(pwd)/frontend:/frontend -e STATIC_DIR=/frontend \
+  mini-commerce-gateway
+```
+
+### Tout lancer avec docker-compose (recommandé)
+
+Un seul fichier `.env` à la racine (optionnel ; les défauts conviennent pour du dev) :
+
+```bash
+docker compose up --build
+```
+
+Puis ouvre **http://localhost:8085/** (frontend + API). Arrêt : `Ctrl+C` puis `docker compose down`.
+
+Résumé :
+- **4 images** : 3 builds (gateway, product-service, order-service) + 1 image officielle PostgreSQL.
+- **3 images applicatives** buildées via les Dockerfiles ; **1 image PostgreSQL** : `postgres:16-alpine` dans `docker-compose.yml`.
+
+---
+
 ## Comment tout tester (résumé)
 
 | Étape | Où | Commande / action |

@@ -8,7 +8,8 @@ const app = express();
 const PORT = 8085;
 
 app.use(cors());
-app.use(express.static(path.join(__dirname, '..', 'frontend')));
+const staticDir = process.env.STATIC_DIR || path.join(__dirname, '..', 'frontend');
+app.use(express.static(staticDir));
 
 const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://localhost:3005';
 const orderServiceUrl = process.env.ORDER_SERVICE_URL || 'http://localhost:3006';

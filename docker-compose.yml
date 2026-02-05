@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${ORDER_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${ORDER_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${ORDER_DB_NAME:-orders}
+    volumes:
+      - ./order-service/create_table.sql:/docker-entrypoint-initdb.d/01-create-table.sql
+    # pas d'exposition 5432 sur l'hôte pour éviter conflit avec un Postgres local ; order-service accède via le réseau Docker
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ORDER_DB_USER:-postgres} -d ${ORDER_DB_NAME:-orders}"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  product-service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    ports:
+      - "3005:3005"
+
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    environment:
+      ORDER_DB_HOST: postgres
+      ORDER_DB_PORT: 5432
+      ORDER_DB_NAME: ${ORDER_DB_NAME:-orders}
+      ORDER_DB_USER: ${ORDER_DB_USER:-postgres}
+      ORDER_DB_PASSWORD: ${ORDER_DB_PASSWORD:-postgres}
+      PRODUCT_SERVICE_URL: http://product-service:3005
+    ports:
+      - "3006:3006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      product-service:
+        condition: service_started
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    environment:
+      PRODUCT_SERVICE_URL: http://product-service:3005
+      ORDER_SERVICE_URL: http://order-service:3006
+      STATIC_DIR: /frontend
+    volumes:
+      - ./frontend:/frontend:ro
+    ports:
+      - "8085:8085"
+    depends_on:
+      - product-service
+      - order-service
