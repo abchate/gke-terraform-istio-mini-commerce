@@ -13,11 +13,14 @@ data:
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 ---
+# Postgres en StatefulSet + PVC = données persistantes (survit aux redémarrages du pod).
+# Les identifiants viennent du Secret postgres-credentials (à créer avant : kubectl apply -f k8s/postgres-secret.yaml).
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: postgres
 spec:
+  serviceName: postgres
   replicas: 1
   selector:
     matchLabels:
@@ -36,23 +39,39 @@ spec:
             - name: POSTGRES_DB
               value: "ordersdb"
             - name: POSTGRES_USER
-              value: "ordersuser"
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: username
             - name: POSTGRES_PASSWORD
-              value: "orderspass"
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: password
           volumeMounts:
             - name: init-sql
               mountPath: /docker-entrypoint-initdb.d
+            - name: data
+              mountPath: /var/lib/postgresql/data
       volumes:
         - name: init-sql
           configMap:
             name: postgres-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: postgres
 spec:
-  type: ClusterIP
+  clusterIP: None
   selector:
     app: postgres
   ports:
@@ -87,9 +106,15 @@ spec:
             - name: ORDER_DB_NAME
               value: "ordersdb"
             - name: ORDER_DB_USER
-              value: "ordersuser"
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: username
             - name: ORDER_DB_PASSWORD
-              value: "orderspass"
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: password
             - name: PRODUCT_SERVICE_URL
               value: "http://product-service:3005"
 ---

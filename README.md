@@ -15,6 +15,23 @@ Pour tester : `POST /api/orders` avec `{"productId": "inexistant", "quantity": 1
 
 ---
 
+## Persistance des données (K8s)
+
+- **PostgreSQL** est déployé en **StatefulSet** (pas Deployment) avec un **PersistentVolumeClaim** (`volumeClaimTemplates`, 2 Gi). Les données survivent aux redémarrages du pod.
+- **Variables d’environnement** : `ORDER_DB_HOST`, `ORDER_DB_PORT`, `ORDER_DB_NAME`, `PRODUCT_SERVICE_URL` sont définies dans le Deployment / StatefulSet. Les identifiants DB ne sont pas en clair.
+- **Secret** : le mot de passe (et l’utilisateur) Postgres sont dans un **Secret** `postgres-credentials` (`k8s/postgres-secret.yaml`). Postgres et order-service lisent `username` et `password` via `env.valueFrom.secretKeyRef`. En production, créer le secret avec `kubectl create secret generic postgres-credentials --from-literal=username=... --from-literal=password=...` au lieu de le mettre en YAML.
+
+**Ordre d’application** : d’abord le Secret, puis le reste (postgres a besoin du Secret au démarrage) :
+```bash
+kubectl apply -f k8s/postgres-secret.yaml
+kubectl apply -f k8s/product-deploy.yaml
+kubectl apply -f k8s/order-deploy.yaml
+kubectl apply -f k8s/web-deploy.yaml
+kubectl apply -f k8s/gateway-deploy.yaml
+```
+
+---
+
 ## Fichier .env (recommandé)
 
 À la racine du projet, crée un fichier `.env` à partir du modèle (surtout pour le mot de passe PostgreSQL) :
@@ -111,10 +128,11 @@ docker build -t gateway:1.0 ./gateway
 docker build -t web:1.0 ./web
 ```
 
-**3. Appliquer les manifests** (dans l’ordre) :
+**3. Appliquer les manifests** (dans l’ordre ; le Secret avant order-deploy) :
 ```bash
+kubectl apply -f k8s/postgres-secret.yaml
 kubectl apply -f k8s/product-deploy.yaml
-kubectl apply -f k8s/order-deploy.yaml    # postgres + order-service
+kubectl apply -f k8s/order-deploy.yaml    # postgres (StatefulSet + PVC) + order-service
 kubectl apply -f k8s/web-deploy.yaml
 kubectl apply -f k8s/gateway-deploy.yaml
 ```
