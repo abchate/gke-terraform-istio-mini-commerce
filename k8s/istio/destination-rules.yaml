@@ -1,0 +1,35 @@
+# DestinationRule : politique de connexion entre services (load balancing, circuit breaker)
+# Istio gère la communication inter-services via les sidecars Envoy injectés dans chaque pod
+
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: product-service-dr
+  namespace: default
+spec:
+  host: product-service
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: order-service-dr
+  namespace: default
+spec:
+  host: order-service
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: web-dr
+  namespace: default
+spec:
+  host: web
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN

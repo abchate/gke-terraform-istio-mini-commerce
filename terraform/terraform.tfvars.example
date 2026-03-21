@@ -1,0 +1,9 @@
+# Copie ce fichier en terraform.tfvars et remplis ton project_id GCP
+# cp terraform.tfvars.example terraform.tfvars
+
+project_id   = "TON-PROJECT-ID-GCP"
+region       = "europe-west1"
+zone         = "europe-west1-b"
+cluster_name = "mini-commerce-cluster"
+node_count   = 2
+machine_type = "e2-medium"

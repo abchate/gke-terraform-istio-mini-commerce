@@ -94,8 +94,8 @@ spec:
     spec:
       containers:
         - name: order-service
-          image: order-service:1.0
-          imagePullPolicy: IfNotPresent
+          image: abchate/order-service:1.0
+          imagePullPolicy: Always
           ports:
             - containerPort: 3006
           env:

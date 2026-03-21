@@ -14,8 +14,8 @@ spec:
     spec:
       containers:
         - name: web
-          image: web:1.0
-          imagePullPolicy: IfNotPresent
+          image: abchate/web:1.0
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
 ---
